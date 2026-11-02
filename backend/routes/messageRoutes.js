@@ -3,26 +3,30 @@ const express = require('express')
 const mongoose = require('mongoose')
 const Message = require('../models/Message')
 const User = require('../models/User')
+const Notification = require('../models/Notification')
 const authMiddleware = require('../middleware/authMiddleware')
 
 const router = express.Router()
 
-// Log requests before authentication so we can diagnose failures
+// Log requests before authentication to diagnose failures
 router.use((req, res, next) => {
   console.log(`[Messages] ${req.method} ${req.originalUrl}`)
   next()
 })
 
-// Send a message
+// Send a text or media message
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    console.log('Message request body:', {
-      receiver: req.body?.receiver,
-      hasText: Boolean(req.body?.text),
-    })
-
     const senderId = req.userId
-    const { receiver, text } = req.body || {}
+    const { receiver, text, messageType, mediaUrl } = req.body || {}
+
+    const cleanText =
+      typeof text === 'string' ? text.trim() : ''
+
+    const cleanMediaUrl =
+      typeof mediaUrl === 'string' ? mediaUrl.trim() : ''
+
+    const type = messageType || 'text'
 
     if (!senderId) {
       return res.status(401).json({
@@ -36,21 +40,40 @@ router.post('/', authMiddleware, async (req, res) => {
       })
     }
 
-    if (typeof text !== 'string' || !text.trim()) {
+    if (senderId.toString() === receiver.toString()) {
       return res.status(400).json({
-        message: 'Message cannot be empty.',
+        message: 'You cannot send a message to yourself.',
       })
     }
 
-    if (text.trim().length > 2000) {
+    if (!['text', 'image', 'video', 'file'].includes(type)) {
+      return res.status(400).json({
+        message: 'Invalid message type.',
+      })
+    }
+
+    if (cleanText.length > 2000) {
       return res.status(400).json({
         message: 'Message cannot exceed 2000 characters.',
       })
     }
 
-    if (senderId.toString() === receiver.toString()) {
+    // Require text, media, or both
+    if (!cleanText && !cleanMediaUrl) {
       return res.status(400).json({
-        message: 'You cannot send a message to yourself.',
+        message: 'Add text or an attachment before sending.',
+      })
+    }
+
+    if (type === 'text' && !cleanText) {
+      return res.status(400).json({
+        message: 'Text messages cannot be empty.',
+      })
+    }
+
+    if (type !== 'text' && !cleanMediaUrl) {
+      return res.status(400).json({
+        message: 'The attachment is missing.',
       })
     }
 
@@ -65,19 +88,36 @@ router.post('/', authMiddleware, async (req, res) => {
     const message = await Message.create({
       sender: senderId,
       receiver,
-      text: text.trim(),
+      text: cleanText,
+      messageType: type,
+      mediaUrl: cleanMediaUrl,
     })
 
     const populatedMessage = await Message.findById(message._id)
       .populate('sender', 'username profilePicture')
       .populate('receiver', 'username profilePicture')
 
+    // Create notification for the recipient
+    try {
+      await Notification.create({
+        recipient: receiver,
+        actor: senderId,
+        type: 'message',
+        message: 'sent you a message',
+      })
+    } catch (notificationError) {
+      console.error(
+        'Message notification error:',
+        notificationError
+      )
+    }
+
     return res.status(201).json(populatedMessage)
   } catch (error) {
     console.error('Send message error:', error.stack || error)
 
     return res.status(500).json({
-      message: error.message || 'Failed to send message.',
+      message: 'Failed to send message.',
     })
   }
 })
@@ -124,6 +164,7 @@ router.get('/:userId', authMiddleware, async (req, res) => {
       .populate('sender', 'username profilePicture')
       .populate('receiver', 'username profilePicture')
 
+    // Mark incoming messages as read
     await Message.updateMany(
       {
         sender: userId,
@@ -138,7 +179,7 @@ router.get('/:userId', authMiddleware, async (req, res) => {
     console.error('Load conversation error:', error.stack || error)
 
     return res.status(500).json({
-      message: error.message || 'Failed to load conversation.',
+      message: 'Failed to load conversation.',
     })
   }
 })
@@ -174,10 +215,13 @@ router.get('/', authMiddleware, async (req, res) => {
       const receiverId = message.receiver._id.toString()
 
       const otherUser =
-        senderId === currentId ? message.receiver : message.sender
+        senderId === currentId
+          ? message.receiver
+          : message.sender
 
       const otherUserId = otherUser._id.toString()
 
+      // Messages are newest-first, so the first message is the latest
       if (!conversations.has(otherUserId)) {
         conversations.set(otherUserId, {
           user: otherUser,
@@ -186,6 +230,7 @@ router.get('/', authMiddleware, async (req, res) => {
         })
       }
 
+      // Count unread messages received by the current user
       if (receiverId === currentId && !message.read) {
         conversations.get(otherUserId).unreadCount += 1
       }
@@ -196,7 +241,7 @@ router.get('/', authMiddleware, async (req, res) => {
     console.error('Load conversations error:', error.stack || error)
 
     return res.status(500).json({
-      message: error.message || 'Failed to load conversations.',
+      message: 'Failed to load conversations.',
     })
   }
 })

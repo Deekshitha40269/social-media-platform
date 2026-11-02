@@ -1,8 +1,16 @@
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './Messages.css'
 
 const API_URL = 'http://localhost:5000/api'
+const MAX_MEDIA_SIZE = 4 * 1024 * 1024
+
+const EMOJIS = [
+  '😀', '😂', '🥹', '😍', '🥰', '😘', '😊', '😉',
+  '😭', '😎', '🥳', '🤗', '❤️', '💕', '💖', '🔥',
+  '✨', '👍', '👏', '🙌', '🙏', '🎉', '💯', '😅',
+  '🤔', '🥺', '💗', '🌸',
+]
 
 function Messages({ token }) {
   const [conversations, setConversations] = useState([])
@@ -11,134 +19,298 @@ function Messages({ token }) {
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState([])
+  const [showUserSearch, setShowUserSearch] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [searching, setSearching] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [attachment, setAttachment] = useState(null)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  const messagesEndRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const requestIdRef = useRef(0)
 
   const getCurrentUserId = () => {
     try {
-      return JSON.parse(
+      const user = JSON.parse(
         localStorage.getItem('socially_user') || 'null'
-      )?._id
+      )
+      return user?._id || user?.id || null
     } catch {
       return null
     }
   }
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
+  const getUserId = (user) => {
+    if (!user) return null
+    if (typeof user === 'string') return user
+    return user._id || user.id || null
+  }
+
+  const getAvatar = (user) => {
+    if (user?.profilePicture) {
+      return (
+        <img
+          src={user.profilePicture}
+          alt={`${user.username || 'User'} profile`}
+          className="message-avatar-image"
+        />
+      )
+    }
+
+    return (user?.username || '?').charAt(0).toUpperCase()
   }
 
   const readResponse = async (response) => {
     const raw = await response.text()
+    let data = {}
 
-    let data
     try {
       data = raw ? JSON.parse(raw) : {}
     } catch {
-      data = { message: raw || 'The server returned an unreadable response.' }
+      data = {
+        message: raw || 'The server returned an unreadable response.',
+      }
     }
 
     if (!response.ok) {
       throw new Error(
-        `Request failed (${response.status}): ${
-          data.message || data.error || 'Unknown server error'
-        }`
+        data.message || data.error || `Request failed (${response.status}).`
       )
     }
 
     return data
   }
 
-  const loadConversations = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_URL}/messages`, { headers })
-      const data = await readResponse(response)
-
-      setConversations(Array.isArray(data) ? data : [])
-    } catch (err) {
-      setError(err.message)
+  const getConversationUser = (conversation) => {
+    if (conversation?.user && typeof conversation.user === 'object') {
+      return conversation.user
     }
-  }, [token])
 
-  const loadMessages = useCallback(async (userId) => {
-    setLoading(true)
-    setError('')
+    if (Array.isArray(conversation?.participants)) {
+      const currentId = getCurrentUserId()
+
+      return (
+        conversation.participants.find(
+          (user) => String(getUserId(user)) !== String(currentId)
+        ) || null
+      )
+    }
+
+    return null
+  }
+
+  const getLastMessageText = (conversation) => {
+    const last = conversation?.lastMessage
+
+    if (typeof last === 'string') return last
+    if (!last) return 'Start chatting'
+
+    if (last.messageType === 'image') {
+      return `📷 ${last.text || 'Photo'}`
+    }
+
+    if (last.messageType === 'video') {
+      return `🎥 ${last.text || 'Video'}`
+    }
+
+    if (last.messageType === 'file') {
+      return `📎 ${last.text || 'Attachment'}`
+    }
+
+    return last.text || 'Start chatting'
+  }
+
+  const loadConversations = useCallback(async () => {
+    if (!token) return
 
     try {
-      const response = await fetch(`${API_URL}/messages/${userId}`, {
-        headers,
+      const response = await fetch(`${API_URL}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
 
       const data = await readResponse(response)
-      setMessages(Array.isArray(data) ? data : [])
 
-      await loadConversations()
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data.conversations)
+          ? data.conversations
+          : []
+
+      setConversations(list)
     } catch (err) {
+      setError(err.message || 'Could not load conversations.')
+    }
+  }, [token])
+
+  const loadMessages = useCallback(
+    async (userId) => {
+      if (!userId || !token) return
+
+      const requestId = ++requestIdRef.current
+
+      setLoading(true)
+      setError('')
       setMessages([])
-      setError(err.message)
-    } finally {
-      setLoading(false)
+
+      try {
+        const response = await fetch(`${API_URL}/messages/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        const data = await readResponse(response)
+
+        if (requestId !== requestIdRef.current) return
+
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.messages)
+            ? data.messages
+            : []
+
+        setMessages(list)
+        await loadConversations()
+      } catch (err) {
+        if (requestId === requestIdRef.current) {
+          setError(err.message || 'Could not load messages.')
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setLoading(false)
+        }
+      }
+    },
+    [token, loadConversations]
+  )
+
+  useEffect(() => {
+    if (token) {
+      loadConversations()
+    } else {
+      setConversations([])
+      setMessages([])
+      setSelectedUser(null)
+      setShowUserSearch(true)
     }
   }, [token, loadConversations])
 
   useEffect(() => {
-    loadConversations()
-  }, [loadConversations])
+    const userId = getUserId(selectedUser)
+
+    if (userId) {
+      loadMessages(userId)
+    } else {
+      requestIdRef.current += 1
+      setMessages([])
+      setLoading(false)
+    }
+  }, [selectedUser, loadMessages])
 
   useEffect(() => {
-    if (selectedUser?._id) {
-      loadMessages(selectedUser._id)
-    } else {
-      setMessages([])
-    }
-  }, [selectedUser?._id, loadMessages])
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    })
+  }, [messages])
 
   const searchUsers = async (event) => {
     event.preventDefault()
 
     if (!search.trim()) {
       setError('Enter a username to search.')
+      setSearchResults([])
       return
     }
 
+    setSearching(true)
     setError('')
     setSearchResults([])
 
     try {
       const response = await fetch(
         `${API_URL}/users/search?username=${encodeURIComponent(search.trim())}`,
-        { headers }
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       )
 
       const data = await readResponse(response)
-      const users = Array.isArray(data) ? data : data.users || []
-      const currentUserId = getCurrentUserId()
 
-      const filteredUsers = users.filter(
-        (user) => user._id !== currentUserId
+      const users = Array.isArray(data)
+        ? data
+        : Array.isArray(data.users)
+          ? data.users
+          : []
+
+      const currentId = getCurrentUserId()
+
+      const filtered = users.filter(
+        (user) => String(getUserId(user)) !== String(currentId)
       )
 
-      setSearchResults(filteredUsers)
+      setSearchResults(filtered)
 
-      if (filteredUsers.length === 0) {
+      if (!filtered.length) {
         setError('No other users found for that username.')
       }
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Could not search for users.')
+    } finally {
+      setSearching(false)
     }
+  }
+
+  const handleAttachment = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    if (
+      !file.type.startsWith('image/') &&
+      !file.type.startsWith('video/')
+    ) {
+      setError('Please select an image or video.')
+      return
+    }
+
+    if (file.size > MAX_MEDIA_SIZE) {
+      setError('Attachments must be 4 MB or smaller.')
+      return
+    }
+
+    setError('')
+
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        setError('Could not read the selected file.')
+        return
+      }
+
+      setAttachment({
+        name: file.name,
+        type: file.type.startsWith('video/') ? 'video' : 'image',
+        dataUrl: reader.result,
+      })
+    }
+
+    reader.onerror = () => {
+      setError('Could not read the selected file.')
+    }
+
+    reader.readAsDataURL(file)
   }
 
   const sendMessage = async (event) => {
     event.preventDefault()
 
-    if (!selectedUser?._id) {
-      setError('Choose a user before sending a message.')
-      return
-    }
+    const receiverId = getUserId(selectedUser)
+    const trimmedText = text.trim()
 
-    if (!text.trim()) return
+    if (!receiverId || (!trimmedText && !attachment) || sending) return
 
     setSending(true)
     setError('')
@@ -146,21 +318,35 @@ function Messages({ token }) {
     try {
       const response = await fetch(`${API_URL}/messages`, {
         method: 'POST',
-        headers,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          receiver: selectedUser._id,
-          text: text.trim(),
+          receiver: receiverId,
+          text: trimmedText,
+          messageType: attachment ? attachment.type : 'text',
+          mediaUrl: attachment ? attachment.dataUrl : '',
         }),
       })
 
-      const sentMessage = await readResponse(response)
+      const data = await readResponse(response)
+      const sent = data.messageRecord || data.messageData || data
 
-      setMessages((previous) => [...previous, sentMessage])
       setText('')
+      setAttachment(null)
+      setShowEmojiPicker(false)
 
-      await loadConversations()
+      if (sent?._id) {
+        setMessages((previous) => [...previous, sent])
+        await loadConversations()
+      } else {
+        await loadMessages(receiverId)
+      }
     } catch (err) {
-      setError(err.message)
+      setError(
+        err.message || 'Could not send your message. Please try again.'
+      )
     } finally {
       setSending(false)
     }
@@ -169,115 +355,176 @@ function Messages({ token }) {
   const selectUser = (user) => {
     setError('')
     setSelectedUser(user)
+    setShowUserSearch(false)
     setSearchResults([])
     setSearch('')
+    setAttachment(null)
+    setShowEmojiPicker(false)
   }
+
+  const backToConversations = () => {
+    setSelectedUser(null)
+    setShowUserSearch(true)
+    setSearchResults([])
+    setSearch('')
+    setMessages([])
+    setError('')
+    setAttachment(null)
+    setShowEmojiPicker(false)
+  }
+
+  const formatTime = (date) => {
+    if (!date) return ''
+
+    const parsed = new Date(date)
+
+    if (Number.isNaN(parsed.getTime())) return ''
+
+    return parsed.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const currentUserId = getCurrentUserId()
 
   return (
     <section className="messages-page">
-      <header className="messages-heading">
-        <div>
+      {/* Messages heading appears only in the inbox */}
+      {showUserSearch && (
+        <div className="messages-heading">
           <h2>Messages</h2>
           <p>Your private conversations on Socially</p>
         </div>
-      </header>
+      )}
 
       {error && (
         <div className="messages-error" role="alert">
-          {error}
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            aria-label="Dismiss error"
+          >
+            ✕
+          </button>
         </div>
       )}
 
-      <form className="message-search" onSubmit={searchUsers}>
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Find someone by username..."
-          aria-label="Search users"
-        />
-        <button type="submit">Search</button>
-      </form>
+      {/* Search bar appears only in the inbox */}
+      {showUserSearch && (
+        <form className="message-search" onSubmit={searchUsers}>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Find someone by username..."
+            aria-label="Search users"
+            disabled={searching}
+          />
 
-      {searchResults.length > 0 && (
+          <button type="submit" disabled={searching}>
+            {searching ? 'Searching...' : 'Search'}
+          </button>
+        </form>
+      )}
+
+      {showUserSearch && searchResults.length > 0 && (
         <div className="message-search-results">
           {searchResults.map((user) => (
             <button
               type="button"
-              key={user._id}
+              key={getUserId(user)}
               onClick={() => selectUser(user)}
             >
-              <span className="message-avatar">
-                {(user.username || '?')[0].toUpperCase()}
-              </span>
-              <span>{user.username}</span>
-              <span className="message-start">Message</span>
+              <span className="message-avatar">{getAvatar(user)}</span>
+              <span>{user.username || 'User'}</span>
+              <span className="message-start">Message →</span>
             </button>
           ))}
         </div>
       )}
 
-      <div className="messages-layout">
-        <aside className="conversation-list">
-          <h3>Your conversations</h3>
+      <div className={`messages-layout ${selectedUser ? 'chat-open' : ''}`}>
+        {/* Conversation list is hidden while chatting */}
+        {!selectedUser && (
+          <aside className="conversation-list">
+            <div className="conversation-list-heading">
+              <h3>Your conversations</h3>
+            </div>
 
-          {conversations.length === 0 ? (
-            <p className="messages-empty">
-              No conversations yet. Search for someone to start chatting!
-            </p>
-          ) : (
-            conversations.map((conversation) => {
-              const user = conversation.user
+            {conversations.length === 0 ? (
+              <p className="messages-empty">
+                No conversations yet. Search for someone to start chatting!
+              </p>
+            ) : (
+              conversations.map((conversation, index) => {
+                const user = getConversationUser(conversation)
+                const userId = getUserId(user)
 
-              if (!user?._id) return null
+                if (!userId) return null
 
-              return (
-                <button
-                  type="button"
-                  key={user._id}
-                  className={`conversation-item ${
-                    selectedUser?._id === user._id ? 'selected' : ''
-                  }`}
-                  onClick={() => selectUser(user)}
-                >
-                  <span className="message-avatar">
-                    {(user.username || '?')[0].toUpperCase()}
-                  </span>
-
-                  <span className="conversation-details">
-                    <strong>{user.username}</strong>
-                    <small>
-                      {conversation.lastMessage?.text || 'Start chatting'}
-                    </small>
-                  </span>
-
-                  {conversation.unreadCount > 0 && (
-                    <span className="unread-count">
-                      {conversation.unreadCount}
+                return (
+                  <button
+                    type="button"
+                    key={userId || conversation._id || index}
+                    className="conversation-item"
+                    onClick={() => selectUser(user)}
+                  >
+                    <span className="message-avatar">
+                      {getAvatar(user)}
                     </span>
-                  )}
-                </button>
-              )
-            })
-          )}
-        </aside>
+
+                    <span className="conversation-details">
+                      <strong>{user.username || 'User'}</strong>
+                      <small>{getLastMessageText(conversation)}</small>
+                    </span>
+
+                    {conversation.unreadCount > 0 && (
+                      <span className="unread-count">
+                        {conversation.unreadCount}
+                      </span>
+                    )}
+                  </button>
+                )
+              })
+            )}
+          </aside>
+        )}
 
         <div className="chat-panel">
           {!selectedUser ? (
             <div className="chat-placeholder">
               <span>💬</span>
               <h3>Your conversations, all in one place</h3>
-              <p>Search for a user or choose a conversation to get started.</p>
+              <p>
+                Search for a user or choose a conversation to get started.
+              </p>
             </div>
           ) : (
             <>
               <header className="chat-header">
+                {/* Keep this arrow: it returns to the conversation list */}
+                <button
+                  type="button"
+                  className="back-to-conversations chat-back-button"
+                  onClick={backToConversations}
+                  aria-label="Back to conversations"
+                  title="Back to conversations"
+                >
+                  ←
+                </button>
+
                 <span className="message-avatar">
-                  {(selectedUser.username || '?')[0].toUpperCase()}
+                  {getAvatar(selectedUser)}
                 </span>
-                <strong>{selectedUser.username}</strong>
+
+                <div className="chat-user-details">
+                  <strong>{selectedUser.username || 'User'}</strong>
+                  <small>Chat on Socially</small>
+                </div>
               </header>
 
-              <div className="chat-messages">
+              <div className="chat-messages" aria-live="polite">
                 {loading ? (
                   <p>Loading messages...</p>
                 ) : messages.length === 0 ? (
@@ -285,38 +532,144 @@ function Messages({ token }) {
                     No messages yet. Say hello! 👋
                   </p>
                 ) : (
-                  messages.map((message) => {
-                    const senderId =
-                      message.sender?._id || message.sender
-
-                    const mine = senderId === getCurrentUserId()
+                  messages.map((message, index) => {
+                    const senderId = getUserId(message.sender)
+                    const mine =
+                      String(senderId) === String(currentUserId)
+                    const type = message.messageType || 'text'
 
                     return (
                       <div
-                        key={message._id}
-                        className={`message-bubble ${
-                          mine ? 'mine' : 'theirs'
-                        }`}
+                        key={message._id || `${senderId}-${index}`}
+                        className={`message-bubble ${mine ? 'mine' : 'theirs'}`}
                       >
-                        <p>{message.text}</p>
-                        <small>
-                          {message.createdAt
-                            ? new Date(message.createdAt).toLocaleTimeString(
-                                [],
-                                {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                }
-                              )
-                            : ''}
+                        {message.mediaUrl && type === 'image' && (
+                          <img
+                            src={message.mediaUrl}
+                            alt="Shared attachment"
+                            className="message-media-image"
+                            loading="lazy"
+                          />
+                        )}
+
+                        {message.mediaUrl && type === 'video' && (
+                          <video
+                            src={message.mediaUrl}
+                            className="message-media-video"
+                            controls
+                            preload="metadata"
+                          />
+                        )}
+
+                        {message.mediaUrl && type === 'file' && (
+                          <a
+                            href={message.mediaUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            📎 Open attachment
+                          </a>
+                        )}
+
+                        {message.text && (
+                          <p className="message-text">{message.text}</p>
+                        )}
+
+                        <small className="message-time">
+                          {formatTime(message.createdAt)}
+                          {mine && message.read ? ' · Seen' : ''}
                         </small>
                       </div>
                     )
                   })
                 )}
+
+                <div ref={messagesEndRef} />
               </div>
 
+              {attachment && (
+                <div className="message-attachment-preview">
+                  <div>
+                    <strong>
+                      {attachment.type === 'image' ? '📷 Photo' : '🎥 Video'}
+                    </strong>
+                    <small>{attachment.name}</small>
+                  </div>
+
+                  {attachment.type === 'image' ? (
+                    <img
+                      src={attachment.dataUrl}
+                      alt="Attachment preview"
+                    />
+                  ) : (
+                    <video
+                      src={attachment.dataUrl}
+                      controls
+                      preload="metadata"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setAttachment(null)}
+                    aria-label="Remove attachment"
+                    disabled={sending}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {showEmojiPicker && (
+                <div className="message-emoji-picker">
+                  {EMOJIS.map((emoji) => (
+                    <button
+                      type="button"
+                      key={emoji}
+                      onClick={() =>
+                        setText((previous) => previous + emoji)
+                      }
+                      aria-label={`Insert ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <form className="chat-compose" onSubmit={sendMessage}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleAttachment}
+                  hidden
+                />
+
+                <button
+                  type="button"
+                  className="chat-tool-button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Attach a photo or video"
+                  title="Attach photo or video"
+                  disabled={sending}
+                >
+                  📎
+                </button>
+
+                <button
+                  type="button"
+                  className="chat-tool-button"
+                  onClick={() =>
+                    setShowEmojiPicker((previous) => !previous)
+                  }
+                  aria-label="Toggle emoji picker"
+                  title="Emojis"
+                  disabled={sending}
+                >
+                  😊
+                </button>
+
                 <input
                   value={text}
                   onChange={(event) => setText(event.target.value)}
@@ -328,9 +681,9 @@ function Messages({ token }) {
 
                 <button
                   type="submit"
-                  disabled={!text.trim() || sending}
+                  disabled={(!text.trim() && !attachment) || sending}
                 >
-                  {sending ? 'Sending...' : 'Send'}
+                  {sending ? 'Sending...' : 'Send ➤'}
                 </button>
               </form>
             </>

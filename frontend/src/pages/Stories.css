@@ -1,0 +1,402 @@
+
+.stories {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+  overflow-x: auto;
+  padding: 18px 16px;
+  box-sizing: border-box;
+  border: 1px solid #eee8f7;
+  border-radius: 20px;
+  background: #fff;
+  scrollbar-width: thin;
+}
+
+.story,
+.story-button {
+  display: flex;
+  flex: 0 0 64px;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6f687f;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.story-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 4px;
+  box-sizing: border-box;
+  border: 2px solid #b29aff;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.story-ring img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.own-story {
+  background: #f2ecff;
+}
+
+.story-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a18af3, #7040ed);
+  color: white;
+  font-size: 28px;
+}
+
+.story-ring-published {
+  padding: 3px;
+  border: 3px solid #8b5cf6;
+}
+
+.story-button > span:last-child {
+  max-width: 75px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.story-success {
+  margin: 10px 4px;
+  color: #35866a;
+  font-size: 12px;
+}
+
+.story-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+  background: rgba(35, 26, 55, 0.55);
+  backdrop-filter: blur(5px);
+}
+
+.story-modal {
+  width: 100%;
+  max-width: 430px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 22px;
+  box-sizing: border-box;
+  border: 1px solid #eee7fb;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 20px 70px rgba(30, 20, 55, .2);
+}
+
+.story-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.story-modal-header h2 {
+  margin: 0;
+  color: #302744;
+  font-size: 20px;
+}
+
+.story-close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: #f1edfa;
+  color: #625477;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.story-upload-area {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  border: 2px dashed #cbbcf4;
+  border-radius: 16px;
+  background: #faf8ff;
+  color: #44365f;
+  text-align: center;
+  cursor: pointer;
+}
+
+.story-upload-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: #eee7ff;
+  color: #7952ed;
+  font-size: 28px;
+}
+
+.story-upload-area strong {
+  font-size: 13px;
+}
+
+.story-upload-area > span:last-of-type {
+  color: #9289a4;
+  font-size: 11px;
+}
+
+.story-upload-area input,
+.story-change-photo input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.story-preview {
+  width: 100%;
+  max-height: 350px;
+  overflow: hidden;
+  border-radius: 15px;
+  background: #f5f1fb;
+}
+
+.story-preview img {
+  display: block;
+  width: 100%;
+  max-height: 350px;
+  object-fit: contain;
+}
+
+.story-change-photo {
+  display: inline-block;
+  margin-top: 10px;
+  color: #7952ed;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.story-caption-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  color: #514765;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.story-caption-label > span {
+  color: #9c94ad;
+  font-weight: 400;
+}
+
+.story-caption-label textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid #e8e1f5;
+  border-radius: 11px;
+  outline: none;
+  background: #fbfaff;
+  color: #302744;
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.story-caption-label textarea:focus {
+  border-color: #9474f2;
+}
+
+.story-publish-button {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #7952ed, #9555d5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.story-publish-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.story-expiry-note {
+  margin: 11px 0 0;
+  color: #9b93aa;
+  font-size: 10px;
+  text-align: center;
+}
+
+.story-error {
+  margin: 10px 0 0;
+  color: #c33f65;
+  font-size: 12px;
+}
+
+.story-view-backdrop {
+  background: rgba(20, 15, 32, .82);
+}
+
+.story-viewer {
+  position: relative;
+  width: min(100%, 390px);
+  height: min(82vh, 680px);
+  overflow: hidden;
+  border-radius: 20px;
+  background: #221b30;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, .35);
+}
+
+.story-viewer-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.story-viewer-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, .45),
+    transparent 24%,
+    transparent 70%,
+    rgba(0, 0, 0, .4)
+  );
+}
+
+.story-viewer-header {
+  position: absolute;
+  top: 17px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.story-viewer-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #7952ed;
+  color: white;
+  font-weight: 700;
+}
+
+.story-viewer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.story-viewer-user {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.story-viewer-user span {
+  font-size: 10px;
+  opacity: .8;
+}
+
+.story-viewer-close {
+  background: rgba(255, 255, 255, .2);
+  color: white;
+}
+
+.story-viewer-caption {
+  position: absolute;
+  right: 20px;
+  bottom: 35px;
+  left: 20px;
+  color: white;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .4);
+}
+
+.story-delete-button {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, .4);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, .35);
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .stories {
+    gap: 14px;
+    padding: 14px 12px;
+  }
+
+  .story,
+  .story-button {
+    flex-basis: 58px;
+  }
+
+  .story-ring {
+    width: 58px;
+    height: 58px;
+  }
+
+  .story-modal {
+    padding: 17px;
+  }
+}

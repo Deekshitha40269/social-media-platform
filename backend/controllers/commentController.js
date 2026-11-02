@@ -1,15 +1,17 @@
+
 const Comment = require("../models/Comment");
 const Post = require("../models/Post");
+const Notification = require("../models/Notification");
 
 // ==========================================
-// CREATE COMMENT
+// CREATE COMMENT + NOTIFICATION
 // ==========================================
 const createComment = async (req, res) => {
     try {
         const { post, text } = req.body;
 
         // Check required fields
-        if (!post || !text) {
+        if (!post || !text || !text.trim()) {
             return res.status(400).json({
                 message: "Post and comment text are required"
             });
@@ -28,7 +30,7 @@ const createComment = async (req, res) => {
         const comment = await Comment.create({
             user: req.userId,
             post: post,
-            text: text
+            text: text.trim()
         });
 
         // Get username and profile picture
@@ -36,6 +38,29 @@ const createComment = async (req, res) => {
             "user",
             "username profilePicture"
         );
+
+        // Create notification for post owner
+        // Do not notify users about their own comments
+        if (
+            existingPost.user.toString() !==
+            req.userId.toString()
+        ) {
+            try {
+                await Notification.create({
+                    recipient: existingPost.user,
+                    actor: req.userId,
+                    type: "comment",
+                    post: existingPost._id,
+                    message: "commented on your post"
+                });
+
+            } catch (notificationError) {
+                console.error(
+                    "Comment notification error:",
+                    notificationError
+                );
+            }
+        }
 
         res.status(201).json({
             message: "Comment created successfully",
@@ -106,19 +131,22 @@ const updateComment = async (req, res) => {
         }
 
         // Only comment owner can update
-        if (comment.user.toString() !== req.userId) {
+        if (
+            comment.user.toString() !==
+            req.userId.toString()
+        ) {
             return res.status(403).json({
                 message: "You can only update your own comment"
             });
         }
 
-        if (!text) {
+        if (!text || !text.trim()) {
             return res.status(400).json({
                 message: "Comment text is required"
             });
         }
 
-        comment.text = text;
+        comment.text = text.trim();
 
         await comment.save();
 
@@ -156,7 +184,10 @@ const deleteComment = async (req, res) => {
         }
 
         // Only comment owner can delete
-        if (comment.user.toString() !== req.userId) {
+        if (
+            comment.user.toString() !==
+            req.userId.toString()
+        ) {
             return res.status(403).json({
                 message: "You can only delete your own comment"
             });
@@ -178,6 +209,9 @@ const deleteComment = async (req, res) => {
 };
 
 
+// ==========================================
+// EXPORT FUNCTIONS
+// ==========================================
 module.exports = {
     createComment,
     getComments,

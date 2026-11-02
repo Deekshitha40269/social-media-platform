@@ -14,14 +14,11 @@ function Comments({ postId, token }) {
     try {
       setError('')
 
-      const response = await fetch(
-        `${API_URL}/comments/${postId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
+      const response = await fetch(`${API_URL}/comments/${postId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
       const data = await response.json()
 
@@ -29,7 +26,6 @@ function Comments({ postId, token }) {
         throw new Error(data.message || 'Could not load comments.')
       }
 
-      // Supports either an array response or { comments: [...] }.
       const list = Array.isArray(data)
         ? data
         : Array.isArray(data.comments)
@@ -46,6 +42,7 @@ function Comments({ postId, token }) {
 
   useEffect(() => {
     if (postId && token) {
+      setLoading(true)
       fetchComments()
     }
   }, [postId, token])
@@ -53,7 +50,9 @@ function Comments({ postId, token }) {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (!text.trim()) {
+    const trimmedText = text.trim()
+
+    if (!trimmedText) {
       setError('Please write a comment first.')
       return
     }
@@ -70,7 +69,7 @@ function Comments({ postId, token }) {
         },
         body: JSON.stringify({
           post: postId,
-          text: text.trim(),
+          text: trimmedText,
         }),
       })
 
@@ -90,11 +89,12 @@ function Comments({ postId, token }) {
   }
 
   return (
-    <section className="comments-section">
-      <h3>Comments ({comments.length})</h3>
-
+    <section
+      className="comments-section"
+      id={`comments-${postId}`}
+    >
       {loading ? (
-        <p>Loading comments...</p>
+        <p className="comments-status">Loading comments...</p>
       ) : comments.length === 0 ? (
         <p className="comments-empty">
           No comments yet. Be the first to comment!
@@ -129,8 +129,12 @@ function Comments({ postId, token }) {
           aria-label="Write a comment"
         />
 
-        <button type="submit" disabled={submitting || !text.trim()}>
-          {submitting ? 'Sending...' : 'Comment'}
+        <button
+          type="submit"
+          className="submit-comment-button"
+          disabled={submitting || !text.trim()}
+        >
+          {submitting ? 'Sending...' : 'Send'}
         </button>
       </form>
 

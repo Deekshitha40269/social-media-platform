@@ -1,7 +1,8 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const API_URL = 'http://localhost:5000/api'
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024
 
 function Profile({ token, currentUser, onUserUpdated }) {
   const [profile, setProfile] = useState(currentUser || null)
@@ -16,6 +17,8 @@ function Profile({ token, currentUser, onUserUpdated }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -48,6 +51,7 @@ function Profile({ token, currentUser, onUserUpdated }) {
         }
 
         const user = profileData.user || profileData
+
         setProfile(user)
         setUsername(user.username || '')
         setBio(user.bio || '')
@@ -62,6 +66,43 @@ function Profile({ token, currentUser, onUserUpdated }) {
 
     if (token) fetchProfile()
   }, [token])
+
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0]
+
+    if (!file) return
+
+    setError('')
+    setMessage('')
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setError('Please choose an image smaller than 2 MB.')
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setProfilePicture(reader.result)
+      } else {
+        setError('Could not preview this image. Please try another.')
+      }
+    }
+
+    reader.onerror = () => {
+      setError('Could not read this image. Please try again.')
+    }
+
+    reader.readAsDataURL(file)
+  }
 
   const handleSave = async (event) => {
     event.preventDefault()
@@ -79,7 +120,7 @@ function Profile({ token, currentUser, onUserUpdated }) {
         body: JSON.stringify({
           username: username.trim(),
           bio: bio.trim(),
-          profilePicture: profilePicture.trim(),
+          profilePicture,
         }),
       })
 
@@ -90,6 +131,7 @@ function Profile({ token, currentUser, onUserUpdated }) {
       }
 
       const updatedUser = data.user || data
+
       setProfile(updatedUser)
       setUsername(updatedUser.username || username)
       setBio(updatedUser.bio || '')
@@ -97,14 +139,32 @@ function Profile({ token, currentUser, onUserUpdated }) {
 
       localStorage.setItem('socially_user', JSON.stringify(updatedUser))
 
-      if (onUserUpdated) onUserUpdated(updatedUser)
+      if (onUserUpdated) {
+        onUserUpdated(updatedUser)
+      }
 
       setEditing(false)
       setMessage('Your profile was updated successfully!')
     } catch (err) {
-      setError(err.message || 'Could not update your profile.')
+      setError(
+        err.message ||
+          'Could not update your profile. Please try again.'
+      )
     } finally {
       setSaving(false)
+    }
+  }
+
+  const cancelEditing = () => {
+    setEditing(false)
+    setUsername(profile?.username || '')
+    setBio(profile?.bio || '')
+    setProfilePicture(profile?.profilePicture || '')
+    setError('')
+    setMessage('')
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
@@ -128,7 +188,10 @@ function Profile({ token, currentUser, onUserUpdated }) {
         <div className="profile-main">
           <div className="profile-avatar-large">
             {profilePicture ? (
-              <img src={profilePicture} alt={profile?.username || 'Profile'} />
+              <img
+                src={profilePicture}
+                alt={`${profile?.username || 'Your'} profile`}
+              />
             ) : (
               (profile?.username || '?')[0].toUpperCase()
             )}
@@ -156,11 +219,66 @@ function Profile({ token, currentUser, onUserUpdated }) {
               </div>
 
               <p className="profile-bio">
-                {profile?.bio || 'Add a little introduction about yourself.'}
+                {profile?.bio ||
+                  'Add a little introduction about yourself.'}
               </p>
             </>
           ) : (
             <form className="edit-profile-form" onSubmit={handleSave}>
+              <div className="profile-photo-editor">
+                <div className="profile-photo-preview">
+                  {profilePicture ? (
+                    <img
+                      src={profilePicture}
+                      alt="Profile picture preview"
+                    />
+                  ) : (
+                    <span>
+                      {(username || '?')[0].toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                <div className="profile-photo-controls">
+                  <strong>Profile picture</strong>
+                  <p>Choose a photo to personalize your profile.</p>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="profile-photo-input"
+                    aria-label="Choose profile picture"
+                  />
+
+                  <button
+                    type="button"
+                    className="choose-photo-button"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Choose photo
+                  </button>
+
+                  {profilePicture && (
+                    <button
+                      type="button"
+                      className="remove-photo-button"
+                      onClick={() => {
+                        setProfilePicture('')
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = ''
+                        }
+                      }}
+                    >
+                      Remove photo
+                    </button>
+                  )}
+
+                  <small>JPG, PNG, GIF or WebP · Maximum 2 MB</small>
+                </div>
+              </div>
+
               <label>
                 Username
                 <input
@@ -183,16 +301,6 @@ function Profile({ token, currentUser, onUserUpdated }) {
                 />
               </label>
 
-              <label>
-                Profile picture URL
-                <input
-                  type="url"
-                  value={profilePicture}
-                  onChange={(event) => setProfilePicture(event.target.value)}
-                  placeholder="https://example.com/photo.jpg"
-                />
-              </label>
-
               <div className="profile-form-actions">
                 <button type="submit" disabled={saving}>
                   {saving ? 'Saving...' : 'Save changes'}
@@ -201,13 +309,8 @@ function Profile({ token, currentUser, onUserUpdated }) {
                 <button
                   type="button"
                   className="profile-cancel-button"
-                  onClick={() => {
-                    setEditing(false)
-                    setUsername(profile?.username || '')
-                    setBio(profile?.bio || '')
-                    setProfilePicture(profile?.profilePicture || '')
-                    setError('')
-                  }}
+                  onClick={cancelEditing}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
@@ -216,11 +319,15 @@ function Profile({ token, currentUser, onUserUpdated }) {
           )}
 
           {error && (
-            <p className="form-error" role="alert">{error}</p>
+            <p className="form-error" role="alert">
+              {error}
+            </p>
           )}
 
           {message && (
-            <p className="form-success" role="status">{message}</p>
+            <p className="form-success" role="status">
+              {message}
+            </p>
           )}
 
           <div className="profile-stats">
@@ -228,10 +335,12 @@ function Profile({ token, currentUser, onUserUpdated }) {
               <strong>{posts.length}</strong>
               <span>Posts</span>
             </div>
+
             <div>
               <strong>{profile?.followers?.length || 0}</strong>
               <span>Followers</span>
             </div>
+
             <div>
               <strong>{profile?.following?.length || 0}</strong>
               <span>Following</span>
@@ -259,7 +368,9 @@ function Profile({ token, currentUser, onUserUpdated }) {
                   />
                 ) : (
                   <div className="profile-post-text">
-                    <p>{post.caption || 'A moment shared on Socially.'}</p>
+                    <p>
+                      {post.caption || 'A moment shared on Socially.'}
+                    </p>
                   </div>
                 )}
 

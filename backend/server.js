@@ -4,16 +4,19 @@ const mongoose = require('mongoose')
 const cors = require('cors')
 require('dotenv').config()
 
+// Import routes
 const authRoutes = require('./routes/authRoutes')
 const userRoutes = require('./routes/userRoutes')
 const postRoutes = require('./routes/postRoutes')
 const commentRoutes = require('./routes/commentRoutes')
 const messageRoutes = require('./routes/messageRoutes')
+const notificationRoutes = require('./routes/notificationRoutes')
 
 const app = express()
 
+// Middleware
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '8mb' }))
 
 // API routes
 app.use('/api/auth', authRoutes)
@@ -21,13 +24,16 @@ app.use('/api/users', userRoutes)
 app.use('/api/posts', postRoutes)
 app.use('/api/comments', commentRoutes)
 
-// Diagnostic logger: runs before the message routes
+// Diagnostic logger for message requests
 app.use('/api/messages', (req, res, next) => {
   console.log('SERVER RECEIVED:', req.method, req.originalUrl)
   next()
 })
 
 app.use('/api/messages', messageRoutes)
+
+// Notification routes
+app.use('/api/notifications', notificationRoutes)
 
 // Connect to MongoDB and start the server
 const PORT = process.env.PORT || 5000

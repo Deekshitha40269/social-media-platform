@@ -1,4 +1,6 @@
+
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 
 // ==========================================
 // GET MY PROFILE
@@ -83,13 +85,14 @@ const updateMyProfile = async (req, res) => {
 };
 
 // ==========================================
-// FOLLOW USER
+// FOLLOW USER + NOTIFICATION
 // ==========================================
 const followUser = async (req, res) => {
     try {
         const targetUserId = req.params.id;
 
-        if (req.userId === targetUserId) {
+        // Prevent following yourself
+        if (req.userId.toString() === targetUserId.toString()) {
             return res.status(400).json({
                 message: "You cannot follow yourself"
             });
@@ -104,19 +107,38 @@ const followUser = async (req, res) => {
             });
         }
 
-        if (currentUser.following.some(
-            id => id.toString() === targetUserId
-        )) {
+        // Prevent duplicate follows
+        if (
+            currentUser.following.some(
+                id => id.toString() === targetUserId.toString()
+            )
+        ) {
             return res.status(400).json({
                 message: "Already following this user"
             });
         }
 
+        // Update following and followers
         currentUser.following.push(targetUser._id);
         targetUser.followers.push(currentUser._id);
 
         await currentUser.save();
         await targetUser.save();
+
+        // Create notification for followed user
+        try {
+            await Notification.create({
+                recipient: targetUser._id,
+                actor: currentUser._id,
+                type: "follow",
+                message: "started following you"
+            });
+        } catch (notificationError) {
+            console.error(
+                "Follow notification error:",
+                notificationError
+            );
+        }
 
         res.json({
             message: "User followed successfully"
@@ -124,6 +146,7 @@ const followUser = async (req, res) => {
 
     } catch (error) {
         console.error(error);
+
         res.status(500).json({
             message: "Server error"
         });
@@ -148,12 +171,12 @@ const unfollowUser = async (req, res) => {
 
         currentUser.following =
             currentUser.following.filter(
-                id => id.toString() !== targetUserId
+                id => id.toString() !== targetUserId.toString()
             );
 
         targetUser.followers =
             targetUser.followers.filter(
-                id => id.toString() !== req.userId
+                id => id.toString() !== req.userId.toString()
             );
 
         await currentUser.save();
@@ -165,6 +188,7 @@ const unfollowUser = async (req, res) => {
 
     } catch (error) {
         console.error(error);
+
         res.status(500).json({
             message: "Server error"
         });
@@ -185,9 +209,14 @@ const searchUsers = async (req, res) => {
         }
 
         // Case-insensitive partial username search
+        const escapedQuery = query.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+        );
+
         const users = await User.find({
             username: {
-                $regex: query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                $regex: escapedQuery,
                 $options: "i"
             }
         })
@@ -201,6 +230,7 @@ const searchUsers = async (req, res) => {
 
     } catch (error) {
         console.error(error);
+
         res.status(500).json({
             message: "Server error"
         });

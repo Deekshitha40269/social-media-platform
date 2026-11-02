@@ -9,7 +9,9 @@ function HomeFeed({ token }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [likingPosts, setLikingPosts] = useState([])
+  const [deletingPosts, setDeletingPosts] = useState([])
   const [likeError, setLikeError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
 
   const getCurrentUserId = () => {
     try {
@@ -100,6 +102,55 @@ function HomeFeed({ token }) {
     }
   }
 
+  const handleDelete = async (post) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this post? This action cannot be undone.'
+    )
+
+    if (!confirmed) return
+
+    setDeleteError('')
+    setDeletingPosts((previous) => [...previous, post._id])
+
+    try {
+      const response = await fetch(`${API_URL}/posts/${post._id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not delete post.')
+      }
+
+      setPosts((previous) =>
+        previous.filter((item) => item._id !== post._id)
+      )
+    } catch (err) {
+      setDeleteError(
+        err.message === 'Failed to fetch'
+          ? 'Cannot connect to the backend. Please try again.'
+          : err.message
+      )
+    } finally {
+      setDeletingPosts((previous) =>
+        previous.filter((id) => id !== post._id)
+      )
+    }
+  }
+
+  const openComments = (postId) => {
+    document
+      .getElementById(`comments-${postId}`)
+      ?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+  }
+
   if (loading) {
     return <p className="feed-status">Loading your feed...</p>
   }
@@ -124,6 +175,8 @@ function HomeFeed({ token }) {
     )
   }
 
+  const currentUserId = getCurrentUserId()
+
   return (
     <section className="real-feed">
       {likeError && (
@@ -132,45 +185,81 @@ function HomeFeed({ token }) {
         </p>
       )}
 
-      {posts.map((post) => {
-        const currentUserId = getCurrentUserId()
+      {deleteError && (
+        <p className="form-error" role="alert">
+          {deleteError}
+        </p>
+      )}
 
+      {posts.map((post) => {
         const isLiked = (post.likes || []).some((like) => {
           const userId = typeof like === 'string' ? like : like?._id
           return userId === currentUserId
         })
 
+        const authorName = post.user?.username || 'Unknown user'
+        const authorPicture = post.user?.profilePicture
+
+        const authorId =
+          typeof post.user === 'string'
+            ? post.user
+            : post.user?._id || post.user?.id
+
+        const isOwner =
+          Boolean(currentUserId) &&
+          Boolean(authorId) &&
+          String(authorId) === String(currentUserId)
+
         return (
           <article className="post" key={post._id}>
             <header className="post-header">
-              <div className="avatar avatar-purple">
-                {(post.user?.username || '?')[0].toUpperCase()}
+              <div className="avatar avatar-purple post-author-avatar">
+                {authorPicture ? (
+                  <img
+                    src={authorPicture}
+                    alt={`${authorName}'s profile`}
+                  />
+                ) : (
+                  authorName[0].toUpperCase()
+                )}
               </div>
 
               <div className="post-author">
-                <strong>
-                  {post.user?.username || 'Unknown user'}
-                </strong>
+                <strong>{authorName}</strong>
                 <span>
                   {post.createdAt
                     ? new Date(post.createdAt).toLocaleString()
                     : 'Recently'}
                 </span>
               </div>
+
+              {isOwner && (
+                <button
+                  type="button"
+                  className="delete-post-button"
+                  onClick={() => handleDelete(post)}
+                  disabled={deletingPosts.includes(post._id)}
+                  aria-label={`Delete post by ${authorName}`}
+                >
+                  {deletingPosts.includes(post._id)
+                    ? 'Deleting...'
+                    : '🗑 Delete'}
+                </button>
+              )}
             </header>
 
             {post.image && (
               <img
                 className="real-post-image"
                 src={post.image}
-                alt={post.caption || 'Post'}
+                alt={post.caption || 'Post image'}
               />
             )}
 
             <div className="post-details">
               {post.caption && (
                 <p>
-                  <strong>{post.user?.username || 'User'}</strong>{' '}
+                  <strong>{authorName}</strong>{' '}
                   {post.caption}
                 </p>
               )}
@@ -190,7 +279,18 @@ function HomeFeed({ token }) {
                       : '♡ Like'}
                 </button>
 
-                <span>{post.likes?.length || 0} likes</span>
+                <span className="likes-count">
+                  {post.likes?.length || 0} likes
+                </span>
+
+                <button
+                  type="button"
+                  className="open-comments-button"
+                  onClick={() => openComments(post._id)}
+                  aria-label="View comments"
+                >
+                  💬 Comments
+                </button>
               </div>
             </div>
 

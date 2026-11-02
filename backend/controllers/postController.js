@@ -1,6 +1,7 @@
 
 const Post = require("../models/Post");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 
 // ==========================================
 // CREATE POST
@@ -81,7 +82,6 @@ const getMyPosts = async (req, res) => {
 // ==========================================
 const getHomeFeed = async (req, res) => {
     try {
-        // Find the logged-in user
         const user = await User.findById(req.userId);
 
         if (!user) {
@@ -90,13 +90,11 @@ const getHomeFeed = async (req, res) => {
             });
         }
 
-        // Include the logged-in user and people they follow
         const feedUserIds = [
             user._id,
             ...user.following
         ];
 
-        // Fetch posts from those users, newest first
         const posts = await Post.find({
             user: { $in: feedUserIds }
         })
@@ -130,8 +128,7 @@ const deletePost = async (req, res) => {
             });
         }
 
-        // Only the post owner can delete
-        if (post.user.toString() !== req.userId) {
+        if (post.user.toString() !== req.userId.toString()) {
             return res.status(403).json({
                 message: "You can only delete your own posts"
             });
@@ -152,7 +149,7 @@ const deletePost = async (req, res) => {
 };
 
 // ==========================================
-// LIKE POST
+// LIKE POST + CREATE NOTIFICATION
 // ==========================================
 const likePost = async (req, res) => {
     try {
@@ -165,14 +162,37 @@ const likePost = async (req, res) => {
         }
 
         // Prevent duplicate likes
-        if (post.likes.some(id => id.toString() === req.userId)) {
+        if (post.likes.some(
+            id => id.toString() === req.userId.toString()
+        )) {
             return res.status(400).json({
                 message: "Post already liked"
             });
         }
 
+        // Save the like
         post.likes.push(req.userId);
         await post.save();
+
+        // Create notification for the post owner
+        // Do not notify users about their own likes
+        if (post.user.toString() !== req.userId.toString()) {
+            try {
+                await Notification.create({
+                    recipient: post.user,
+                    actor: req.userId,
+                    type: "like",
+                    post: post._id,
+                    message: "liked your post"
+                });
+
+            } catch (notificationError) {
+                console.error(
+                    "Like notification error:",
+                    notificationError
+                );
+            }
+        }
 
         res.json({
             message: "Post liked successfully"
@@ -200,7 +220,7 @@ const unlikePost = async (req, res) => {
         }
 
         post.likes = post.likes.filter(
-            id => id.toString() !== req.userId
+            id => id.toString() !== req.userId.toString()
         );
 
         await post.save();

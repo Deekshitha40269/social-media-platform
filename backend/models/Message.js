@@ -15,9 +15,18 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: true,
+      default: '',
       trim: true,
       maxlength: 2000,
+    },
+    messageType: {
+      type: String,
+      enum: ['text', 'image', 'video', 'file'],
+      default: 'text',
+    },
+    mediaUrl: {
+      type: String,
+      default: '',
     },
     read: {
       type: Boolean,
@@ -28,5 +37,15 @@ const messageSchema = new mongoose.Schema(
     timestamps: true,
   }
 )
+
+// Require either text or an attachment.
+messageSchema.pre('validate', function () {
+  if (!this.text?.trim() && !this.mediaUrl?.trim()) {
+    this.invalidate(
+      'text',
+      'A message must contain text or an attachment.'
+    )
+  }
+})
 
 module.exports = mongoose.model('Message', messageSchema)
