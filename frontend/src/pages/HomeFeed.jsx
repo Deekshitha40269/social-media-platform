@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Comments from './Comments'
 
-const API_URL = 'http://localhost:5000/api'
+const API_URL = 'https://socially-backend-v5ux.onrender.com/api'
 
 function HomeFeed({ token }) {
   const [posts, setPosts] = useState([])

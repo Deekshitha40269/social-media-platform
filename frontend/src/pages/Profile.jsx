@@ -1,7 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-const API_URL = 'http://localhost:5000/api'
+const API_URL = 'https://socially-backend-v5ux.onrender.com/api'
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024
 
 function Profile({ token, currentUser, onUserUpdated }) {

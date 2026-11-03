@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './Messages.css'
 
-const API_URL = 'http://localhost:5000/api'
+const API_URL = 'https://socially-backend-v5ux.onrender.com/api'
 const MAX_MEDIA_SIZE = 4 * 1024 * 1024
 
 const EMOJIS = [

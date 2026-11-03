@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import './Notifications.css'
 
-const API_URL = 'http://localhost:5000/api'
+const API_URL = 'https://socially-backend-v5ux.onrender.com/api'
 
 const notificationIcons = {
   like: '♥',
