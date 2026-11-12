@@ -2009,3 +2009,280 @@
   background: #f5efff;
   transform: translateX(-2px);
 }
+.message-date-separator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 20px 0;
+}
+
+.message-date-separator span {
+  background: #eee8fa;
+  color: #7255a8;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+}
+
+/* Message edit and unsend controls */
+.message-actions {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  z-index: 5;
+}
+
+.message-menu-trigger {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.message-menu-trigger:hover {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.message-actions-menu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  min-width: 115px;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  color: #222;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  padding: 5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+
+.message-actions-menu button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.message-actions-menu button:hover {
+  background: #f1f1f1;
+}
+
+.message-actions-menu .message-unsend-option {
+  color: #d93045;
+}
+
+.message-bubble {
+  position: relative;
+}
+
+.message-bubble.mine {
+  padding-top: 25px;
+}
+
+.message-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.message-edit-box textarea {
+  width: 100%;
+  min-height: 65px;
+  resize: vertical;
+  padding: 9px;
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.message-edit-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.message-edit-buttons button {
+  border: none;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.message-edit-buttons button:last-child {
+  background: #7652d5;
+  color: white;
+}
+
+.message-edit-buttons button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* Message edit and unsend controls */
+.message-actions {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  z-index: 5;
+}
+
+.message-menu-trigger {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.message-menu-trigger:hover {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.message-actions-menu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  min-width: 115px;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  color: #222;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  padding: 5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+
+.message-actions-menu button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.message-actions-menu button:hover {
+  background: #f1f1f1;
+}
+
+.message-actions-menu .message-unsend-option {
+  color: #d93045;
+}
+
+.message-bubble {
+  position: relative;
+}
+
+.message-bubble.mine {
+  padding-top: 25px;
+}
+
+.message-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.message-edit-box textarea {
+  width: 100%;
+  min-height: 65px;
+  resize: vertical;
+  padding: 9px;
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.message-edit-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.message-edit-buttons button {
+  border: none;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.message-edit-buttons button:last-child {
+  background: #7652d5;
+  color: white;
+}
+
+.message-edit-buttons button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Edit message buttons */
+.message-edit-buttons {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.message-edit-buttons button {
+  border: none !important;
+  border-radius: 10px !important;
+  padding: 9px 18px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 75px;
+}
+
+/* Cancel button */
+.message-edit-buttons button:first-child {
+  background: #f0ebff !important;
+  color: #7045c5 !important;
+  border: 1px solid #ded2ff !important;
+  box-shadow: none !important;
+}
+
+.message-edit-buttons button:first-child:hover {
+  background: #e4d9ff !important;
+  transform: translateY(-1px);
+}
+
+/* Save button */
+.message-edit-buttons button:last-child {
+  background: linear-gradient(135deg, #9270ed, #7045d0) !important;
+  color: white !important;
+  box-shadow: 0 3px 8px rgba(112, 69, 208, 0.22);
+}
+
+.message-edit-buttons button:last-child:hover {
+  background: linear-gradient(135deg, #805be0, #6038bd) !important;
+  transform: translateY(-1px);
+}
+
+.message-edit-buttons button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}

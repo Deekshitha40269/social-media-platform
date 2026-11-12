@@ -58,7 +58,6 @@ router.post('/', authMiddleware, async (req, res) => {
       })
     }
 
-    // Require text, media, or both
     if (!cleanText && !cleanMediaUrl) {
       return res.status(400).json({
         message: 'Add text or an attachment before sending.',
@@ -118,6 +117,112 @@ router.post('/', authMiddleware, async (req, res) => {
 
     return res.status(500).json({
       message: 'Failed to send message.',
+    })
+  }
+})
+
+// Edit an existing text message
+router.patch('/:id', authMiddleware, async (req, res) => {
+  try {
+    const currentUserId = req.userId
+    const { id } = req.params
+    const { text } = req.body || {}
+
+    if (!currentUserId) {
+      return res.status(401).json({
+        message: 'Authentication failed: user ID not found.',
+      })
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid message ID.',
+      })
+    }
+
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({
+        message: 'Message text cannot be empty.',
+      })
+    }
+
+    const cleanText = text.trim()
+
+    if (cleanText.length > 2000) {
+      return res.status(400).json({
+        message: 'Message cannot exceed 2000 characters.',
+      })
+    }
+
+    const message = await Message.findOne({
+      _id: id,
+      sender: currentUserId,
+      messageType: 'text',
+    })
+
+    if (!message) {
+      return res.status(404).json({
+        message: 'Message not found or you cannot edit this message.',
+      })
+    }
+
+    message.text = cleanText
+    message.edited = true
+
+    await message.save()
+
+    const updatedMessage = await Message.findById(message._id)
+      .populate('sender', 'username profilePicture')
+      .populate('receiver', 'username profilePicture')
+
+    return res.json(updatedMessage)
+  } catch (error) {
+    console.error('Edit message error:', error.stack || error)
+
+    return res.status(500).json({
+      message: 'Failed to edit message.',
+    })
+  }
+})
+
+// Unsend an existing message
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const currentUserId = req.userId
+    const { id } = req.params
+
+    if (!currentUserId) {
+      return res.status(401).json({
+        message: 'Authentication failed: user ID not found.',
+      })
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: 'Invalid message ID.',
+      })
+    }
+
+    const deletedMessage = await Message.findOneAndDelete({
+      _id: id,
+      sender: currentUserId,
+    })
+
+    if (!deletedMessage) {
+      return res.status(404).json({
+        message: 'Message not found or you cannot unsend this message.',
+      })
+    }
+
+    return res.json({
+      message: 'Message unsent successfully.',
+      messageId: id,
+    })
+  } catch (error) {
+    console.error('Unsend message error:', error.stack || error)
+
+    return res.status(500).json({
+      message: 'Failed to unsend message.',
     })
   }
 })
@@ -221,7 +326,6 @@ router.get('/', authMiddleware, async (req, res) => {
 
       const otherUserId = otherUser._id.toString()
 
-      // Messages are newest-first, so the first message is the latest
       if (!conversations.has(otherUserId)) {
         conversations.set(otherUserId, {
           user: otherUser,
@@ -230,7 +334,6 @@ router.get('/', authMiddleware, async (req, res) => {
         })
       }
 
-      // Count unread messages received by the current user
       if (receiverId === currentId && !message.read) {
         conversations.get(otherUserId).unreadCount += 1
       }

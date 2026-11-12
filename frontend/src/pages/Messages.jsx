@@ -1,5 +1,4 @@
-
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import './Messages.css'
 
 const API_URL = 'https://socially-backend-v5ux.onrender.com/api'
@@ -26,6 +25,13 @@ function Messages({ token }) {
   const [error, setError] = useState('')
   const [attachment, setAttachment] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  // Edit and unsend states
+  const [editingMessageId, setEditingMessageId] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [openMessageMenuId, setOpenMessageMenuId] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [unsendingMessageId, setUnsendingMessageId] = useState(null)
 
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -352,6 +358,106 @@ function Messages({ token }) {
     }
   }
 
+  // Start editing a message
+  const startEditingMessage = (message) => {
+    setEditingMessageId(message._id)
+    setEditText(message.text || '')
+    setOpenMessageMenuId(null)
+    setError('')
+  }
+
+  // Cancel editing
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null)
+    setEditText('')
+  }
+
+  // Save edited message
+  const saveEditedMessage = async (messageId) => {
+    const cleanText = editText.trim()
+
+    if (!cleanText) {
+      setError('Message text cannot be empty.')
+      return
+    }
+
+    if (cleanText.length > 2000) {
+      setError('Message cannot exceed 2000 characters.')
+      return
+    }
+
+    setSavingEdit(true)
+    setError('')
+
+    try {
+      const response = await fetch(`${API_URL}/messages/${messageId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: cleanText }),
+      })
+
+      const updatedMessage = await readResponse(response)
+
+      setMessages((previous) =>
+        previous.map((message) =>
+          message._id === messageId ? updatedMessage : message
+        )
+      )
+
+      setEditingMessageId(null)
+      setEditText('')
+      setOpenMessageMenuId(null)
+
+      await loadConversations()
+    } catch (err) {
+      setError(err.message || 'Could not edit your message.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // Unsend a message
+  const unsendMessage = async (messageId) => {
+    const confirmed = window.confirm(
+      'Unsend this message? It will be removed from the conversation for both people.'
+    )
+
+    if (!confirmed) return
+
+    setUnsendingMessageId(messageId)
+    setError('')
+
+    try {
+      const response = await fetch(`${API_URL}/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      await readResponse(response)
+
+      setMessages((previous) =>
+        previous.filter((message) => message._id !== messageId)
+      )
+
+      if (editingMessageId === messageId) {
+        setEditingMessageId(null)
+        setEditText('')
+      }
+
+      setOpenMessageMenuId(null)
+      await loadConversations()
+    } catch (err) {
+      setError(err.message || 'Could not unsend your message.')
+    } finally {
+      setUnsendingMessageId(null)
+    }
+  }
+
   const selectUser = (user) => {
     setError('')
     setSelectedUser(user)
@@ -360,6 +466,9 @@ function Messages({ token }) {
     setSearch('')
     setAttachment(null)
     setShowEmojiPicker(false)
+    setEditingMessageId(null)
+    setEditText('')
+    setOpenMessageMenuId(null)
   }
 
   const backToConversations = () => {
@@ -371,8 +480,12 @@ function Messages({ token }) {
     setError('')
     setAttachment(null)
     setShowEmojiPicker(false)
+    setEditingMessageId(null)
+    setEditText('')
+    setOpenMessageMenuId(null)
   }
 
+  // Format the time displayed below each message.
   const formatTime = (date) => {
     if (!date) return ''
 
@@ -386,11 +499,48 @@ function Messages({ token }) {
     })
   }
 
+  // Create a consistent date key to identify messages from the same day.
+  const getDateKey = (date) => {
+    const parsed = new Date(date)
+
+    if (Number.isNaN(parsed.getTime())) return ''
+
+    const year = parsed.getFullYear()
+    const month = String(parsed.getMonth() + 1).padStart(2, '0')
+    const day = String(parsed.getDate()).padStart(2, '0')
+
+    return `${year}-${month}-${day}`
+  }
+
+  // Display TODAY, YESTERDAY, or a date in DD-MM-YYYY format.
+  const formatDateLabel = (date) => {
+    const parsed = new Date(date)
+
+    if (Number.isNaN(parsed.getTime())) return ''
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const messageDate = new Date(parsed)
+    messageDate.setHours(0, 0, 0, 0)
+
+    if (messageDate.getTime() === today.getTime()) return 'TODAY'
+    if (messageDate.getTime() === yesterday.getTime()) return 'YESTERDAY'
+
+    return parsed.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).replaceAll('/', '-')
+  }
+
   const currentUserId = getCurrentUserId()
 
   return (
     <section className="messages-page">
-      {/* Messages heading appears only in the inbox */}
       {showUserSearch && (
         <div className="messages-heading">
           <h2>Messages</h2>
@@ -411,7 +561,6 @@ function Messages({ token }) {
         </div>
       )}
 
-      {/* Search bar appears only in the inbox */}
       {showUserSearch && (
         <form className="message-search" onSubmit={searchUsers}>
           <input
@@ -445,7 +594,6 @@ function Messages({ token }) {
       )}
 
       <div className={`messages-layout ${selectedUser ? 'chat-open' : ''}`}>
-        {/* Conversation list is hidden while chatting */}
         {!selectedUser && (
           <aside className="conversation-list">
             <div className="conversation-list-heading">
@@ -503,7 +651,6 @@ function Messages({ token }) {
           ) : (
             <>
               <header className="chat-header">
-                {/* Keep this arrow: it returns to the conversation list */}
                 <button
                   type="button"
                   className="back-to-conversations chat-back-button"
@@ -538,48 +685,152 @@ function Messages({ token }) {
                       String(senderId) === String(currentUserId)
                     const type = message.messageType || 'text'
 
+                    const currentDateKey = getDateKey(message.createdAt)
+                    const previousDateKey =
+                      index > 0
+                        ? getDateKey(messages[index - 1].createdAt)
+                        : null
+
+                    const showDateSeparator =
+                      currentDateKey !== previousDateKey
+
                     return (
-                      <div
-                        key={message._id || `${senderId}-${index}`}
-                        className={`message-bubble ${mine ? 'mine' : 'theirs'}`}
-                      >
-                        {message.mediaUrl && type === 'image' && (
-                          <img
-                            src={message.mediaUrl}
-                            alt="Shared attachment"
-                            className="message-media-image"
-                            loading="lazy"
-                          />
+                      <Fragment key={message._id || `${senderId}-${index}`}>
+                        {showDateSeparator && currentDateKey && (
+                          <div className="message-date-separator">
+                            <span>
+                              {formatDateLabel(message.createdAt)}
+                            </span>
+                          </div>
                         )}
 
-                        {message.mediaUrl && type === 'video' && (
-                          <video
-                            src={message.mediaUrl}
-                            className="message-media-video"
-                            controls
-                            preload="metadata"
-                          />
-                        )}
+                        <div
+                          className={`message-bubble ${mine ? 'mine' : 'theirs'}`}
+                        >
+                          {mine && type === 'text' && (
+                            <div className="message-actions">
+                              <button
+                                type="button"
+                                className="message-menu-trigger"
+                                aria-label="Message options"
+                                title="Message options"
+                                onClick={() =>
+                                  setOpenMessageMenuId((previous) =>
+                                    previous === message._id
+                                      ? null
+                                      : message._id
+                                  )
+                                }
+                                disabled={
+                                  savingEdit || Boolean(unsendingMessageId)
+                                }
+                              >
+                                ⋯
+                              </button>
 
-                        {message.mediaUrl && type === 'file' && (
-                          <a
-                            href={message.mediaUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            📎 Open attachment
-                          </a>
-                        )}
+                              {openMessageMenuId === message._id && (
+                                <div className="message-actions-menu">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      startEditingMessage(message)
+                                    }
+                                  >
+                                    Edit
+                                  </button>
 
-                        {message.text && (
-                          <p className="message-text">{message.text}</p>
-                        )}
+                                  <button
+                                    type="button"
+                                    className="message-unsend-option"
+                                    onClick={() =>
+                                      unsendMessage(message._id)
+                                    }
+                                    disabled={
+                                      unsendingMessageId === message._id
+                                    }
+                                  >
+                                    {unsendingMessageId === message._id
+                                      ? 'Unsending...'
+                                      : 'Unsend'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
 
-                        <small className="message-time">
-                          {formatTime(message.createdAt)}
-                          {mine && message.read ? ' · Seen' : ''}
-                        </small>
-                      </div>
+                          {message.mediaUrl && type === 'image' && (
+                            <img
+                              src={message.mediaUrl}
+                              alt="Shared attachment"
+                              className="message-media-image"
+                              loading="lazy"
+                            />
+                          )}
+
+                          {message.mediaUrl && type === 'video' && (
+                            <video
+                              src={message.mediaUrl}
+                              className="message-media-video"
+                              controls
+                              preload="metadata"
+                            />
+                          )}
+
+                          {message.mediaUrl && type === 'file' && (
+                            <a
+                              href={message.mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              📎 Open attachment
+                            </a>
+                          )}
+
+                          {editingMessageId === message._id ? (
+                            <div className="message-edit-box">
+                              <textarea
+                                value={editText}
+                                onChange={(event) =>
+                                  setEditText(event.target.value)
+                                }
+                                maxLength={2000}
+                                aria-label="Edit message"
+                                autoFocus
+                              />
+
+                              <div className="message-edit-buttons">
+                                <button
+                                  type="button"
+                                  onClick={cancelEditingMessage}
+                                  disabled={savingEdit}
+                                >
+                                  Cancel
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    saveEditedMessage(message._id)
+                                  }
+                                  disabled={!editText.trim() || savingEdit}
+                                >
+                                  {savingEdit ? 'Saving...' : 'Save'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            message.text && (
+                              <p className="message-text">{message.text}</p>
+                            )
+                          )}
+
+                          <small className="message-time">
+                            {message.edited ? 'Edited · ' : ''}
+                            {formatTime(message.createdAt)}
+                            {mine && message.read ? ' · Seen' : ''}
+                          </small>
+                        </div>
+                      </Fragment>
                     )
                   })
                 )}
